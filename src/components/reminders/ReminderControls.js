@@ -133,7 +133,7 @@ const ReminderControls = ({ event, canSetReminder, compact = false }) => {
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                handleReminderToggle(timing.value);
+                handleReminderToggle(timing.value).catch(console.error);
               }}
               disabled={isDisabled}
               aria-pressed={isActive}
