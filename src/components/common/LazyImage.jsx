@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import '../../styles/lazy-image.css';
 
 /**
- * LazyImage — drop-in replacement for <img> with:
+ * LazyImage — drop-in replacement for <img alt="image"> with:
  *   - blur-up placeholder via CSS (no library)
  *   - loading="lazy" / decoding="async" by default
  *   - optional <picture> + WebP source via useWebP prop
@@ -16,7 +16,7 @@ import '../../styles/lazy-image.css';
  *   loading    {string}   "lazy" (default) | "eager" for above-fold heroes
  *   decoding   {string}   "async" (default)
  *   useWebP    {boolean}  Wrap in <picture> with a .webp <source> fallback
- *   className  {string}   Extra classes applied to the <img>
+ *   className  {string}   Extra classes applied to the <img alt="image">
  *   onError    {function} Called if the image fails to load
  */
 const LazyImage = ({
