@@ -34,7 +34,7 @@ const EventDetailsPage = () => {
   useEffect(() => {
     if (userId && event) {
       import("../../utils/waitlistUtils").then(({ getQueuePosition }) => {
-        setQueuePosition(getQueuePosition(event.id, userId));
+        getQueuePosition(event.id, userId).then(setQueuePosition);
       }).catch(() => setQueuePosition(-1));
     } else {
       setQueuePosition(-1);
@@ -44,7 +44,7 @@ const EventDetailsPage = () => {
   useEffect(() => {
     if (event) {
       import("../../utils/waitlistUtils").then(({ getEventWaitlist }) => {
-        setWaitlistCount(getEventWaitlist(event.id).length);
+        getEventWaitlist(event.id).then(list => setWaitlistCount(list.length));
       }).catch(() => setWaitlistCount(0));
     }
   }, [event, waitlistUpdated]);

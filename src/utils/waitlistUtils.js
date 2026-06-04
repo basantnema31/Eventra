@@ -26,9 +26,9 @@ export const addLocalNotification = async (title, message) => {
 };
 
 // Retrieve all waitlist entries across all events and users
-export const getGlobalWaitlist = () => {
+export const getGlobalWaitlist = async () => {
   try {
-    const raw = localStorage.getItem(GLOBAL_WAITLIST_KEY);
+    const raw = await idbGet(GLOBAL_WAITLIST_KEY);
     return raw ? safeJsonParse(raw, []) : [];
   } catch {
     return [];
@@ -36,34 +36,34 @@ export const getGlobalWaitlist = () => {
 };
 
 // Persist waitlist entries globally
-export const saveGlobalWaitlist = (records) => {
+export const saveGlobalWaitlist = async (records) => {
   try {
-    localStorage.setItem(GLOBAL_WAITLIST_KEY, JSON.stringify(records));
+    await idbSet(GLOBAL_WAITLIST_KEY, JSON.stringify(records));
   } catch (error) {
     console.error("[WaitlistUtils] Failed to save global waitlist:", error);
   }
 };
 
 // Get waitlist entries for a specific event with 'waiting' status
-export const getEventWaitlist = (eventId) => {
-  const records = getGlobalWaitlist();
+export const getEventWaitlist = async (eventId) => {
+  const records = await getGlobalWaitlist();
   return records
     .filter((r) => r.eventId === parseInt(eventId) && r.status === "waiting")
     .sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt));
 };
 
 // Calculate queue position (1-indexed) for a user on a specific event
-export const getQueuePosition = (eventId, userId) => {
-  const eventWaitlist = getEventWaitlist(eventId);
+export const getQueuePosition = async (eventId, userId) => {
+  const eventWaitlist = await getEventWaitlist(eventId);
   const index = eventWaitlist.findIndex((r) => r.userId === userId);
   return index !== -1 ? index + 1 : -1;
 };
 
 // Add registration to specific user's localStorage registered events
-export const addRegistrationToUserStorage = (userId, event) => {
+export const addRegistrationToUserStorage = async (userId, event) => {
   const storageKey = `my_events_${userId}`;
   try {
-    const raw = localStorage.getItem(storageKey);
+    const raw = await idbGet(storageKey);
     const current = raw ? safeJsonParse(raw, []) : [];
     if (!current.some((r) => r.eventId === event.id)) {
       current.push({
@@ -80,7 +80,7 @@ export const addRegistrationToUserStorage = (userId, event) => {
         },
         event,
       });
-      localStorage.setItem(storageKey, JSON.stringify(current));
+      await idbSet(storageKey, JSON.stringify(current));
     }
   } catch (error) {
     console.error("[WaitlistUtils] Failed to add registration to user storage:", error);
@@ -88,16 +88,16 @@ export const addRegistrationToUserStorage = (userId, event) => {
 };
 
 // Add registration to event's attendees count
-export const incrementEventAttendees = (eventId) => {
+export const incrementEventAttendees = async (eventId) => {
   // If event availability caches exist, update them
   try {
     const cacheKey = `event_detail_${eventId}`;
-    const raw = localStorage.getItem(cacheKey);
+    const raw = await idbGet(cacheKey);
     if (raw) {
       const parsed = safeJsonParse(raw, null);
       if (parsed && parsed.event) {
         parsed.event.attendees = (Number(parsed.event.attendees) || 0) + 1;
-        localStorage.setItem(cacheKey, JSON.stringify(parsed));
+        await idbSet(cacheKey, JSON.stringify(parsed));
       }
     }
   } catch (error) {
@@ -113,7 +113,7 @@ export const joinWaitlist = async (eventId, user, registrationForm = {}) => {
   // Check if already registered
   const userRegKey = `my_events_${userId}`;
   try {
-    const rawRegs = localStorage.getItem(userRegKey);
+    const rawRegs = await idbGet(userRegKey);
     const regs = rawRegs ? safeJsonParse(rawRegs, []) : [];
     if (regs.some((r) => r.eventId === parseInt(eventId))) {
       throw new Error("You are already registered for this event.");
@@ -122,7 +122,7 @@ export const joinWaitlist = async (eventId, user, registrationForm = {}) => {
     if (e.message.includes("already registered")) throw e;
   }
 
-  const records = getGlobalWaitlist();
+  const records = await getGlobalWaitlist();
   
   // Check for duplicate waitlist entries
   const existing = records.find(
@@ -143,7 +143,7 @@ export const joinWaitlist = async (eventId, user, registrationForm = {}) => {
   };
 
   records.push(newEntry);
-  saveGlobalWaitlist(records);
+  await saveGlobalWaitlist(records);
 
   // Notify user they joined
   await addLocalNotification(
@@ -156,7 +156,7 @@ export const joinWaitlist = async (eventId, user, registrationForm = {}) => {
 
 // Leave waitlist (user action)
 export const leaveWaitlist = async (eventId, userId) => {
-  const records = getGlobalWaitlist();
+  const records = await getGlobalWaitlist();
   const matchIndex = records.findIndex(
     (r) => r.userId === userId && r.eventId === parseInt(eventId) && r.status === "waiting"
   );
@@ -167,7 +167,7 @@ export const leaveWaitlist = async (eventId, userId) => {
 
   records[matchIndex].status = "removed";
   records[matchIndex].removedAt = new Date().toISOString();
-  saveGlobalWaitlist(records);
+  await saveGlobalWaitlist(records);
 
   await addLocalNotification(
     "Left Waitlist",
@@ -179,7 +179,7 @@ export const leaveWaitlist = async (eventId, userId) => {
 
 // Promote a specific record to a confirmed registration
 export const promoteRecord = async (record, event) => {
-  const records = getGlobalWaitlist();
+  const records = await getGlobalWaitlist();
   const match = records.find(
     (r) => r.userId === record.userId && r.eventId === record.eventId && r.status === "waiting"
   );
@@ -187,13 +187,13 @@ export const promoteRecord = async (record, event) => {
   if (match) {
     match.status = "promoted";
     match.promotedAt = new Date().toISOString();
-    saveGlobalWaitlist(records);
+    await saveGlobalWaitlist(records);
 
     // 1. Add registration record to user's storage
-    addRegistrationToUserStorage(record.userId, event);
+    await addRegistrationToUserStorage(record.userId, event);
 
     // 2. Increment attendee count in local event caches/stores
-    incrementEventAttendees(event.id);
+    await incrementEventAttendees(event.id);
 
     // 3. Dispatch promotion notification
     await addLocalNotification(
@@ -207,7 +207,7 @@ export const promoteRecord = async (record, event) => {
 
 // Promote the next user in queue when a spot opens up
 export const promoteNextUser = async (eventId, eventData = null) => {
-  const eventWaitlist = getEventWaitlist(eventId);
+  const eventWaitlist = await getEventWaitlist(eventId);
   if (eventWaitlist.length === 0) return null;
 
   const nextUserRecord = eventWaitlist[0];
@@ -217,7 +217,7 @@ export const promoteNextUser = async (eventId, eventData = null) => {
   if (!event) {
     try {
       const cacheKey = `event_detail_${eventId}`;
-      const raw = localStorage.getItem(cacheKey);
+      const raw = await idbGet(cacheKey);
       if (raw) {
         const parsed = safeJsonParse(raw, null);
         event = parsed?.event || parsed;
@@ -246,7 +246,7 @@ export const handleCapacityIncrease = async (event, newCapacity) => {
   const spotsToFill = newCapacity - currentAttendees;
   if (spotsToFill <= 0) return 0;
 
-  const eventWaitlist = getEventWaitlist(event.id);
+  const eventWaitlist = await getEventWaitlist(event.id);
   const countToPromote = Math.min(spotsToFill, eventWaitlist.length);
 
   for (let i = 0; i < countToPromote; i++) {
@@ -258,7 +258,7 @@ export const handleCapacityIncrease = async (event, newCapacity) => {
 
 // Organizer action to manually remove a user
 export const organizerRemoveUser = async (eventId, userId) => {
-  const records = getGlobalWaitlist();
+  const records = await getGlobalWaitlist();
   const matchIndex = records.findIndex(
     (r) => r.userId === userId && r.eventId === parseInt(eventId) && r.status === "waiting"
   );
@@ -269,7 +269,7 @@ export const organizerRemoveUser = async (eventId, userId) => {
 
   records[matchIndex].status = "removed";
   records[matchIndex].removedAt = new Date().toISOString();
-  saveGlobalWaitlist(records);
+  await saveGlobalWaitlist(records);
 
   // Trigger notification for the removed user
   await addLocalNotification(

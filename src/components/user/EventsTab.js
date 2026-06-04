@@ -294,31 +294,32 @@ const EventsTab = ({ hostedEvents = [], onViewTicket }) => {
   useEffect(() => {
     if (user) {
       import("../../utils/waitlistUtils.js").then(({ getGlobalWaitlist }) => {
-        const records = getGlobalWaitlist();
-        const userId = user.id || user.email;
-        const userWaitlists = records.filter(r => r.userId === userId && r.status === 'waiting');
-        
-        import("../../Pages/Events/eventsMockData.json").then(({ default: mockEvents }) => {
-          const resolved = userWaitlists.map(w => {
-            const foundEvent = mockEvents.find(e => e.id === w.eventId);
-            if (foundEvent) {
+        getGlobalWaitlist().then(records => {
+          const userId = user.id || user.email;
+          const userWaitlists = records.filter(r => r.userId === userId && r.status === 'waiting');
+          
+          import("../../Pages/Events/eventsMockData.json").then(({ default: mockEvents }) => {
+            const resolved = userWaitlists.map(w => {
+              const foundEvent = mockEvents.find(e => e.id === w.eventId);
+              if (foundEvent) {
+                return {
+                  ...foundEvent,
+                  waitlistJoinedAt: w.joinedAt,
+                  isWaitlist: true,
+                };
+              }
               return {
-                ...foundEvent,
-                waitlistJoinedAt: w.joinedAt,
+                id: w.eventId,
+                title: `Event #${w.eventId}`,
+                date: "",
+                time: "",
+                location: "Details unavailable",
+                type: "event",
                 isWaitlist: true,
               };
-            }
-            return {
-              id: w.eventId,
-              title: `Event #${w.eventId}`,
-              date: "",
-              time: "",
-              location: "Details unavailable",
-              type: "event",
-              isWaitlist: true,
-            };
-          });
-          setWaitlistEvents(resolved);
+            });
+            setWaitlistEvents(resolved);
+          }).catch(() => setWaitlistEvents([]));
         }).catch(() => setWaitlistEvents([]));
       }).catch(() => setWaitlistEvents([]));
     } else {
